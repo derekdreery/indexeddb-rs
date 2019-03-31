@@ -1,2 +1,1 @@
-import('./indexeddb_test')
-    .catch(console.error);
+import('./indexeddb_test').catch(console.warn);

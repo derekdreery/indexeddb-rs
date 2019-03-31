@@ -8,23 +8,35 @@ repository = "https://github.com/derekdreery/indexeddb-rs"
 readme = "README.md"
 description = "indexeddb callbacks to rust futures"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-wasm-bindgen = "0.2.29"
+wasm-bindgen = "0.2.31"
 futures = "0.1.25"
-js-sys = "0.3.6"
+js-sys = "0.3.8"
 lazy_static = "1.2.0"
-wasm-bindgen-futures = "0.3.6"
+wasm-bindgen-futures = "0.3.8"
+console-web = "0.1.2"
 
 [dependencies.web-sys]
 version = "0.3.6"
 features = [
     "Window",
     "DomException",
+    "DomStringList",
     "IdbDatabase",
     "IdbFactory",
     "IdbOpenDbRequest",
     "IdbRequest",
     "IdbRequestReadyState",
+    "IdbVersionChangeEvent",
+    "IdbObjectStore",
+    "IdbObjectStoreParameters",
+    "IdbTransaction",
+    "IdbTransactionMode",
+    "IdbIndex",
+    "IdbIndexParameters",
 ]
 
 [workspace]
@@ -32,3 +44,13 @@ members = [
     ".",
     "indexeddb-test",
 ]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.2.31"
+
+[patch.crates-io]
+wasm-bindgen-futures = { path = "../wasm-bindgen/crates/futures" }
+wasm-bindgen-test = { path = "../wasm-bindgen/crates/test" }
+js-sys = { path = "../wasm-bindgen/crates/js-sys" }
+web-sys = { path = "../wasm-bindgen/crates/web-sys" }
+wasm-bindgen = { path = "../wasm-bindgen" }
