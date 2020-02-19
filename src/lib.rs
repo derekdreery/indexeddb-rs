@@ -106,14 +106,14 @@ impl Future for IdbOpenDbRequest {
                 // executor.
                 let onsuccess = Closure::wrap(Box::new(move || {
                     success_notifier.notify();
-                }) as Box<FnMut()>);
+                }) as Box<dyn FnMut()>);
                 self.inner
                     .set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));
                 self.onsuccess.replace(onsuccess); // drop the old closure if there was one
 
                 let onerror = Closure::wrap(Box::new(move || {
                     error_notifier.notify();
-                }) as Box<FnMut()>);
+                }) as Box<dyn FnMut()>);
                 self.inner
                     .set_onerror(Some(&onerror.as_ref().unchecked_ref()));
                 self.onerror.replace(onerror); // drop the old closure if there was one

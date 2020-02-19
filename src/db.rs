@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::marker::PhantomData;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use crate::transaction::{Transaction, TransactionMode};
 
 use crate::object_store::{KeyPath, ObjectStoreDuringUpgrade};
 
@@ -68,13 +69,13 @@ impl DbDuringUpgrade {
     /// Get the transaction for this request.
     ///
     /// Will panic if called to early.
-    pub fn object_store(&self) -> ObjectStoreDuringUpgrade {
+    pub fn transaction(&self) -> Transaction {
         let inner = self
             .request
             .transaction()
             .expect("transaction not available");
         debug_assert!(inner.mode() == Ok(web_sys::IdbTransactionMode::Versionchange));
-        TransactionDuringUpgrade { inner, db: self }
+        Transaction { inner, db: PhantomData }
     }
 }
 
