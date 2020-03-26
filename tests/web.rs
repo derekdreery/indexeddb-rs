@@ -1,19 +1,17 @@
 use wasm_bindgen_test::*;
-
-use futures::Future;
 use indexeddb::KeyPath;
 use wasm_bindgen::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test(async)]
-fn open() -> impl Future<Item = (), Error = JsValue> {
-    indexeddb::open("test", 1, |_old_version, _upgrader| ()).map(|_| ())
+async fn open() {
+    assert!(indexeddb::open("test", 1, |_old_version, _upgrader| ()).await.is_ok());
 }
 
 #[wasm_bindgen_test(async)]
-fn object_store_params() -> impl Future<Item = (), Error = JsValue> {
-    indexeddb::open("test2", 1, |_, upgrader| {
+async fn object_store_params() {
+    assert!(indexeddb::open("test2", 1, |_, upgrader| {
         let obj_store = upgrader
             .create_object_store("test", KeyPath::None, false)
             .unwrap();
@@ -38,5 +36,5 @@ fn object_store_params() -> impl Future<Item = (), Error = JsValue> {
         //     KeyPath::Multi(vec!["test".into(), "test2".into()])
         // );
     })
-    .map(|_db| ())
+    .await.is_ok());
 }

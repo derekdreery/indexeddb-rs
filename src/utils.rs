@@ -1,4 +1,8 @@
-use futures::{task, Async, Future, Poll};
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll}
+};
 use std::sync::{Arc, Mutex};
 
 // some helper stuff for the transaction future:
@@ -6,7 +10,7 @@ use std::sync::{Arc, Mutex};
 pub struct Inner<T, E> {
     completed: bool,
     value: Option<Result<T, E>>,
-    task: Option<task::Task>,
+    task: Option<std::task::Waker>,
 }
 
 impl<T, E> Inner<T, E> {
@@ -44,7 +48,7 @@ impl<T, E> TSender<T, E> {
 
             if let Some(task) = lock.task.take() {
                 drop(lock);
-                task.notify();
+                task.wake_by_ref();
             }
         } else {
             panic!("Only 1 event down channel");
@@ -58,17 +62,17 @@ pub struct TReceiver<T, E> {
 }
 
 impl<T, E> Future for TReceiver<T, E> {
-    type Item = T;
-    type Error = E;
+    type Output = Result<T, E>;
 
-    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut lock = self.inner.lock().unwrap();
 
         if lock.completed {
-            lock.value.take().unwrap().map(Async::Ready)
+            Poll::Ready(lock.value.take().unwrap())
         } else {
-            lock.task = Some(task::current());
-            Ok(Async::NotReady)
+            lock.task = Some(cx.waker().clone());
+            Poll::Pending
         }
     }
 }
