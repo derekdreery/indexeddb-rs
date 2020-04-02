@@ -1,9 +1,9 @@
+use std::sync::{Arc, Mutex};
 use std::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll}
+    task::{Context, Poll},
 };
-use std::sync::{Arc, Mutex};
 
 // some helper stuff for the transaction future:
 #[derive(Debug)]
@@ -64,8 +64,7 @@ pub struct TReceiver<T, E> {
 impl<T, E> Future for TReceiver<T, E> {
     type Output = Result<T, E>;
 
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut lock = self.inner.lock().unwrap();
 
         if lock.completed {

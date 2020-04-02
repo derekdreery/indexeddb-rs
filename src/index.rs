@@ -1,9 +1,9 @@
+use crate::object_store::{ObjectStore, ObjectStoreDuringUpgrade};
+use crate::request::IdbRequest;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
 use wasm_bindgen::prelude::*;
-
-use crate::object_store::{ObjectStore, ObjectStoreDuringUpgrade};
 
 /// An index during a database upgrade
 #[derive(Debug)]
@@ -46,7 +46,34 @@ impl<'a> Index<'a> {
         }
     }
 
+    pub fn count(&self) -> IdbRequest {
+        IdbRequest {
+            inner: self.inner.count().unwrap(),
+            onsuccess: None,
+            onerror: None,
+        }
+    }
+
     pub fn name(&self) -> String {
         self.inner.name()
+    }
+
+    pub fn get<T>(&self, key: T) -> IdbRequest
+    where
+        T: serde::ser::Serialize,
+    {
+        IdbRequest {
+            inner: self.inner.get(&JsValue::from_serde(&key).unwrap()).unwrap(),
+            onsuccess: None,
+            onerror: None,
+        }
+    }
+
+    pub fn get_all_keys(&self) -> IdbRequest {
+        IdbRequest {
+            inner: self.inner.get_all_keys().unwrap(),
+            onerror: None,
+            onsuccess: None,
+        }
     }
 }

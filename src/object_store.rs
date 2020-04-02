@@ -1,15 +1,16 @@
-use crate::db::DbDuringUpgrade;
-use crate::index::{IndexDuringUpgrade, Index};
+use crate::db::IdbDatabaseDuringUpgrade;
+use crate::index::{Index, IndexDuringUpgrade};
+use crate::request::IdbRequest;
 use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
-use wasm_bindgen::prelude::*;
+use wasm_bindgen::{prelude::*, JsCast};
 
 #[derive(Debug)]
 pub struct ObjectStoreDuringUpgrade<'a> {
     pub(crate) inner: web_sys::IdbObjectStore,
-    pub(crate) db: &'a DbDuringUpgrade,
+    pub(crate) db: &'a IdbDatabaseDuringUpgrade,
 }
 
 impl<'a> ObjectStoreDuringUpgrade<'a> {
@@ -28,7 +29,8 @@ impl<'a> ObjectStoreDuringUpgrade<'a> {
         let mut params = web_sys::IdbIndexParameters::new();
         params.unique(unique);
         // https://developer.mozilla.org/en-US/docs/Web/API/IDBObjectStore/createIndex#Exceptions
-        // we should be able to check for all error conditions at compile-time, but not yet done.
+        // we should be able to check for all error conditions at compile-time,
+        // but not yet done.
         let index = self
             .inner
             .create_index_with_str_sequence_and_optional_parameters(
@@ -49,7 +51,9 @@ impl<'a> ObjectStoreDuringUpgrade<'a> {
 
     /// Get an already-existing index.
     pub fn index(&'a self, name: &str) -> Result<IndexDuringUpgrade<'a>, JsValue> {
-        self.inner.index(name).map(|inner| IndexDuringUpgrade::new(inner, self))
+        self.inner
+            .index(name)
+            .map(|inner| IndexDuringUpgrade::new(inner, self))
     }
 }
 
@@ -69,17 +73,18 @@ pub struct ObjectStore<'a> {
 }
 
 impl<'a> ObjectStore<'a> {
-    /// The name of the object store.
-    pub fn name(&self) -> String {
-        self.inner.name()
+    /// Create a new object store.
+    pub(crate) fn new(inner: web_sys::IdbObjectStore) -> Self {
+        ObjectStore {
+            inner,
+            db: PhantomData,
+        }
     }
 
-    /// The key path of the object store. No key path means keys are stored out-of-tree.
-    pub fn key_path(&self) -> KeyPath {
-        self.inner.key_path().unwrap().into()
-    }
+    /// # Properties
 
-    /// Whether they primary key uses an auto-generated incrementing number as its value.
+    /// Whether they primary key uses an auto-generated incrementing number as
+    /// its value.
     pub fn auto_increment(&self) -> bool {
         self.inner.auto_increment()
     }
@@ -89,9 +94,42 @@ impl<'a> ObjectStore<'a> {
         to_collection!(self.inner.index_names() => HashSet<String> : insert)
     }
 
+    pub fn key_path(&self) -> KeyPath {
+        self.inner.key_path().unwrap().into()
+    }
+
+    /// The name of the object store.
+    pub fn name(&self) -> String {
+        self.inner.name()
+    }
+
     /// Get an index.
     pub fn index(&'a self, name: &'_ str) -> Result<Index<'a>, JsValue> {
         self.inner.index(name).map(|inner| Index::new(inner, self))
+    }
+
+    /// Updates a given record in a database, or inserts a new record if the
+    /// given item does not already exist.
+    pub fn put<T>(&self, item: T, _key: Option<String>) -> IdbRequest
+    where
+        T: serde::ser::Serialize,
+    {
+        IdbRequest {
+            inner: self
+                .inner
+                .put(&JsValue::from_serde(&item).unwrap())
+                .unwrap(),
+            onerror: None,
+            onsuccess: None,
+        }
+    }
+
+    pub fn get_all(&self) -> IdbRequest {
+        IdbRequest {
+            inner: self.inner.get_all().unwrap(),
+            onerror: None,
+            onsuccess: None,
+        }
     }
 }
 
@@ -102,9 +140,8 @@ pub enum KeyPath {
     None,
     /// The path to the single key.
     Single(String),
-    // This complains when I use it in the browser TODO investigate.
-    // /// The paths to all the parts of the key.
-    // Multi(Vec<String>),
+    /// The paths to all the parts of the key.
+    Multi(Vec<String>),
 }
 
 impl From<KeyPath> for JsValue {
@@ -112,20 +149,18 @@ impl From<KeyPath> for JsValue {
         match key_path {
             KeyPath::None => JsValue::NULL,
             KeyPath::Single(path) => JsValue::from(path),
-            //KeyPath::Multi(paths) => from_collection!(paths).into(),
+            KeyPath::Multi(paths) => from_collection!(paths).into(),
         }
     }
 }
 
 impl From<JsValue> for KeyPath {
-    fn from(val: JsValue) -> KeyPath {
+    fn from(val: JsValue) -> Self {
         if val.is_null() || val.is_undefined() {
             KeyPath::None
         } else if let Some(s) = val.as_string() {
             KeyPath::Single(s)
         } else {
-            panic!("expected string or null");
-            /*
             let arr = match val.dyn_into::<js_sys::Array>() {
                 Ok(v) => v,
                 Err(e) => panic!("expected array of strings, found {:?}", e),
@@ -140,26 +175,24 @@ impl From<JsValue> for KeyPath {
                 }
             }
             KeyPath::Multi(out)
-            */
         }
     }
 }
 
-/*
 impl From<Vec<String>> for KeyPath {
-    fn from(inner: Vec<String>) -> KeyPath {
+    fn from(inner: Vec<String>) -> Self {
         KeyPath::Multi(inner)
     }
 }
 
 impl<S> From<&[S]> for KeyPath
-where S: AsRef<str>
+where
+    S: AsRef<str>,
 {
     fn from(inner: &[S]) -> KeyPath {
         KeyPath::Multi(inner.iter().map(|s| s.as_ref().to_owned()).collect())
     }
 }
-*/
 
 impl From<String> for KeyPath {
     fn from(inner: String) -> KeyPath {

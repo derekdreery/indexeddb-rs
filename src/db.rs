@@ -1,34 +1,34 @@
+use crate::transaction::{Transaction, TransactionMode};
+use std::marker::PhantomData;
 use std::mem;
 use std::ops::Deref;
 use std::sync::Arc;
-use std::marker::PhantomData;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use crate::transaction::{Transaction, TransactionMode};
 
 use crate::object_store::{KeyPath, ObjectStoreDuringUpgrade};
 
 /// A handle on the database during an upgrade.
 #[derive(Debug)]
-pub struct DbDuringUpgrade {
+pub struct IdbDatabaseDuringUpgrade {
     inner: web_sys::IdbDatabase,
     request: Arc<web_sys::IdbOpenDbRequest>,
 }
 
-impl Deref for DbDuringUpgrade {
-    type Target = Db;
+impl Deref for IdbDatabaseDuringUpgrade {
+    type Target = IdbDatabase;
     fn deref(&self) -> &Self::Target {
         unsafe { mem::transmute(&self.inner) }
     }
 }
 
-impl DbDuringUpgrade {
+impl IdbDatabaseDuringUpgrade {
     pub(crate) fn from_raw_unchecked(
         raw: JsValue,
         request: Arc<web_sys::IdbOpenDbRequest>,
     ) -> Self {
         let inner = web_sys::IdbDatabase::unchecked_from_js(raw);
-        DbDuringUpgrade { inner, request }
+        IdbDatabaseDuringUpgrade { inner, request }
     }
 
     /// Creates a new object store (roughly equivalent to a table)
@@ -75,18 +75,21 @@ impl DbDuringUpgrade {
             .transaction()
             .expect("transaction not available");
         debug_assert!(inner.mode() == Ok(web_sys::IdbTransactionMode::Versionchange));
-        Transaction { inner, db: PhantomData }
+        Transaction {
+            inner,
+            db: PhantomData,
+        }
     }
 }
 
 /// A handle on the database
 #[derive(Debug)]
 #[repr(transparent)]
-pub struct Db {
+pub struct IdbDatabase {
     pub(crate) inner: web_sys::IdbDatabase,
 }
 
-impl Db {
+impl IdbDatabase {
     /// The name of the database.
     pub fn name(&self) -> String {
         self.inner.name()
@@ -102,20 +105,21 @@ impl Db {
         to_collection!(self.inner.object_store_names() => Vec<String> : push)
     }
 
-    /// Start a dababase transaction.
+    /// Start a database transaction.
     ///
-    /// All operations on data happen within a transaction, including read-only operations. I'm not
-    /// sure yet whether beginning a transaction takes a snapshot or whether reads might give
-    /// different answers.
+    /// All operations on data happen within a transaction, including read-only operations.
     pub fn transaction<'a>(&'a self, mode: TransactionMode) -> Transaction<'a> {
         let inner = self
             .inner
+            //FIXME(beyer): Transaction should take store_names.
             .transaction_with_str_sequence_and_mode(
                 &self.inner.object_store_names().into(),
                 mode.into(),
             )
             .unwrap();
-        Transaction { inner, db: PhantomData }
+        Transaction {
+            inner,
+            db: PhantomData,
+        }
     }
 }
-

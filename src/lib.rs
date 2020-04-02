@@ -3,20 +3,21 @@ mod macros;
 mod db;
 mod index;
 mod object_store;
-mod utils;
+mod request;
 mod transaction;
+mod utils;
 
 pub use crate::db::*;
 pub use crate::index::*;
 pub use crate::object_store::*;
 pub use crate::transaction::*;
+use std::fmt;
+use std::sync::Arc;
 use std::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll}
+    task::{Context, Poll},
 };
-use std::fmt;
-use std::sync::Arc;
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
 #[inline]
@@ -34,8 +35,8 @@ fn factory() -> web_sys::IdbFactory {
 pub async fn open(
     name: &str,
     version: u32,
-    on_upgrade_needed: impl Fn(u32, DbDuringUpgrade) + 'static,
-) -> Result<Db, JsValue> {
+    on_upgrade_needed: impl Fn(u32, IdbDatabaseDuringUpgrade) + 'static,
+) -> Result<IdbDatabase, JsValue> {
     if version == 0 {
         panic!("indexeddb version must be >= 1");
     }
@@ -49,7 +50,7 @@ pub async fn open(
         };
         on_upgrade_needed(
             old_version,
-            DbDuringUpgrade::from_raw_unchecked(result, request_copy.clone()),
+            IdbDatabaseDuringUpgrade::from_raw_unchecked(result, request_copy.clone()),
         );
     };
     let onupgradeneeded =
@@ -63,6 +64,7 @@ pub async fn open(
 
 /// Wraps the open db request. Private - the user interacts with the request using the function
 /// passed to the `open` method.
+
 struct IdbOpenDbRequest {
     // We need to move a ref for this into the upgradeneeded closure.
     inner: Arc<web_sys::IdbOpenDbRequest>,
@@ -91,36 +93,36 @@ impl fmt::Debug for IdbOpenDbRequest {
 }
 
 impl Future for IdbOpenDbRequest {
-    type Output = Result<Db, JsValue>;
+    type Output = Result<IdbDatabase, JsValue>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use web_sys::IdbRequestReadyState as ReadyState;
 
-        if self.inner.ready_state() == ReadyState::Pending {
-            let success_notifier = cx.waker().clone();
-            let error_notifier = cx.waker().clone();
+        match self.inner.ready_state() {
+            ReadyState::Pending => {
+                let success_notifier = cx.waker().clone();
+                let error_notifier = cx.waker().clone();
 
-            
-            let onsuccess = Closure::wrap(Box::new(move || {
-                success_notifier.wake_by_ref();
-            }) as Box<dyn FnMut()>);
-            self.inner
-                .set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));
-            self.onsuccess.replace(onsuccess); // drop the old closure if there was one
+                let onsuccess = Closure::wrap(Box::new(move || {
+                    success_notifier.wake_by_ref();
+                }) as Box<dyn FnMut()>);
+                self.inner
+                    .set_onsuccess(Some(onsuccess.as_ref().unchecked_ref()));
+                self.onsuccess.replace(onsuccess); // drop the old closure if there was one
 
-            let onerror = Closure::wrap(Box::new(move || {
-                error_notifier.wake_by_ref();
-            }) as Box<dyn FnMut()>);
-            self.inner
-                .set_onerror(Some(&onerror.as_ref().unchecked_ref()));
-            self.onerror.replace(onerror); // drop the old closure if there was one
+                let onerror = Closure::wrap(Box::new(move || {
+                    error_notifier.wake_by_ref();
+                }) as Box<dyn FnMut()>);
+                self.inner
+                    .set_onerror(Some(&onerror.as_ref().unchecked_ref()));
+                self.onerror.replace(onerror); // drop the old closure if there was one
 
-
-            Poll::Pending
-        } else {
-            Poll::Ready(Ok(Db{
+                Poll::Pending
+            }
+            ReadyState::Done => Poll::Ready(Ok(IdbDatabase {
                 inner: self.inner.result().unwrap().into(),
-            }))
+            })),
+            ReadyState::__Nonexhaustive => panic!("unexpected ready state"),
         }
     }
 }
