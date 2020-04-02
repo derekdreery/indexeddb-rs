@@ -1,11 +1,11 @@
 use indexeddb::{KeyPath, TransactionMode};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::*;
 use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct TestAccount {
     uuid: String,
     name: String,
@@ -13,7 +13,7 @@ struct TestAccount {
     user: TestUser,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
 struct TestUser {
     uuid: String,
     name: String,
@@ -68,7 +68,7 @@ async fn object_store_params() {
 }
 
 #[wasm_bindgen_test(async)]
-async fn object_store_index_and_put() {
+async fn object_store_and_index() {
     let db = indexeddb::open("object_store_index_test_db", 1, |_, upgrader| {
         let obj_store = upgrader
             .create_object_store("accounts", KeyPath::Single("id".into()), true)
@@ -118,13 +118,39 @@ async fn object_store_index_and_put() {
         .unwrap();
 
     let index = object_store.index("a_by_uuid").unwrap();
-
     assert_eq!(index.name(), "a_by_uuid");
-    let keys: Vec<usize> = JsValue::into_serde(&index.get_all_keys().await.unwrap()).unwrap();
 
+    let keys: Vec<usize> = JsValue::into_serde(&index.get_all_keys().await.unwrap()).unwrap();
     assert_eq!(keys, vec![2, 1]);
 
     let count: usize = JsValue::into_serde(&index.count().await.unwrap()).unwrap();
-
     assert_eq!(count, 2);
+
+    let test: Vec<TestAccount> =
+        JsValue::into_serde(&object_store.get_all().await.unwrap()).unwrap();
+    assert_eq!(
+        test,
+        vec![
+            TestAccount {
+                uuid: "I6WABHBQEWIMDMWWBRHDCIAXGQ".to_string(),
+                name: "AgileBits".to_string(),
+                domain: "agilebits.1password.com".to_string(),
+                user: TestUser {
+                    uuid: "STBEASXUNJKRKXDQ3URUN667UQ".to_string(),
+                    name: "Wendy Appleseed".to_string(),
+                    email: "wendy@appleseed.me".to_string(),
+                },
+            },
+            TestAccount {
+                uuid: "B4PSCIHJKZDMZOYJR5P7LRPSUA".to_string(),
+                name: "Wendy Appleseed".to_string(),
+                domain: "my.1password.com".to_string(),
+                user: TestUser {
+                    uuid: "J7ZTAVR5VTXXWMLAYZR2ZMFS7A".to_string(),
+                    name: "Wendy Appleseed".to_string(),
+                    email: "wendy@appleseed.me".to_string(),
+                },
+            },
+        ]
+    )
 }
