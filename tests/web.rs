@@ -120,14 +120,13 @@ async fn object_store_and_index() {
     let index = object_store.index("a_by_uuid").unwrap();
     assert_eq!(index.name(), "a_by_uuid");
 
-    let keys: Vec<usize> = JsValue::into_serde(&index.get_all_keys().await.unwrap()).unwrap();
+    let keys = index.get_all_keys().await.unwrap();
     assert_eq!(keys, vec![2, 1]);
 
-    let count: usize = JsValue::into_serde(&index.count().await.unwrap()).unwrap();
+    let count = index.count().await.unwrap();
     assert_eq!(count, 2);
 
-    let test: Vec<TestAccount> =
-        JsValue::into_serde(&object_store.get_all().await.unwrap()).unwrap();
+    let test: Vec<TestAccount> = object_store.get_all().await.unwrap();
     assert_eq!(
         test,
         vec![

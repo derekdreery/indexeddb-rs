@@ -110,26 +110,19 @@ impl<'a> ObjectStore<'a> {
 
     /// Updates a given record in a database, or inserts a new record if the
     /// given item does not already exist.
-    pub fn put<T>(&self, item: T, _key: Option<String>) -> IdbRequest
+    pub fn put<T>(&self, item: T, _key: Option<String>) -> IdbRequest<usize>
     where
         T: serde::ser::Serialize,
     {
-        IdbRequest {
-            inner: self
-                .inner
+        IdbRequest::new(
+            self.inner
                 .put(&JsValue::from_serde(&item).unwrap())
                 .unwrap(),
-            onerror: None,
-            onsuccess: None,
-        }
+        )
     }
 
-    pub fn get_all(&self) -> IdbRequest {
-        IdbRequest {
-            inner: self.inner.get_all().unwrap(),
-            onerror: None,
-            onsuccess: None,
-        }
+    pub fn get_all<T>(&self) -> IdbRequest<T> {
+        IdbRequest::new(self.inner.get_all().unwrap())
     }
 }
 

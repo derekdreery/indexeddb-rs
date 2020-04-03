@@ -1,3 +1,4 @@
+use std::marker::PhantomData;
 use std::{
     future::Future,
     pin::Pin,
@@ -5,14 +6,29 @@ use std::{
 };
 use wasm_bindgen::{closure::Closure, JsCast, JsValue};
 
-pub struct IdbRequest {
-    pub inner: web_sys::IdbRequest,
-    pub onsuccess: Option<Closure<dyn FnMut()>>,
-    pub onerror: Option<Closure<dyn FnMut()>>,
+pub struct IdbRequest<'a, T> {
+    inner: web_sys::IdbRequest,
+    onsuccess: Option<Closure<dyn FnMut()>>,
+    onerror: Option<Closure<dyn FnMut()>>,
+    _phantom: PhantomData<&'a T>,
 }
 
-impl Future for IdbRequest {
-    type Output = Result<JsValue, JsValue>;
+impl<'a, T> IdbRequest<'a, T> {
+    pub(crate) fn new(inner: web_sys::IdbRequest) -> Self {
+        IdbRequest::<T> {
+            inner,
+            onsuccess: None,
+            onerror: None,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<'a, T> Future for IdbRequest<'a, T>
+where
+    T: serde::de::DeserializeOwned,
+{
+    type Output = Result<T, JsValue>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use web_sys::IdbRequestReadyState as ReadyState;
@@ -38,7 +54,10 @@ impl Future for IdbRequest {
 
                 Poll::Pending
             }
-            ReadyState::Done => Poll::Ready(Ok(self.inner.result().unwrap())),
+            ReadyState::Done => {
+                let result = JsValue::into_serde(&self.inner.result().unwrap()).unwrap();
+                Poll::Ready(Ok(result))
+            }
 
             ReadyState::__Nonexhaustive => panic!("unexpected ready state"),
         }

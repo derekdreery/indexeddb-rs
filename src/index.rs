@@ -46,34 +46,22 @@ impl<'a> Index<'a> {
         }
     }
 
-    pub fn count(&self) -> IdbRequest {
-        IdbRequest {
-            inner: self.inner.count().unwrap(),
-            onsuccess: None,
-            onerror: None,
-        }
+    pub fn count(&self) -> IdbRequest<usize> {
+        IdbRequest::new(self.inner.count().unwrap())
     }
 
     pub fn name(&self) -> String {
         self.inner.name()
     }
 
-    pub fn get<T>(&self, key: T) -> IdbRequest
+    pub fn get<T>(&self, key: T) -> IdbRequest<T>
     where
         T: serde::ser::Serialize,
     {
-        IdbRequest {
-            inner: self.inner.get(&JsValue::from_serde(&key).unwrap()).unwrap(),
-            onsuccess: None,
-            onerror: None,
-        }
+        IdbRequest::new(self.inner.get(&JsValue::from_serde(&key).unwrap()).unwrap())
     }
 
-    pub fn get_all_keys(&self) -> IdbRequest {
-        IdbRequest {
-            inner: self.inner.get_all_keys().unwrap(),
-            onerror: None,
-            onsuccess: None,
-        }
+    pub fn get_all_keys(&self) -> IdbRequest<Vec<usize>> {
+        IdbRequest::new(self.inner.get_all_keys().unwrap())
     }
 }

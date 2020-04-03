@@ -1,6 +1,7 @@
 #[macro_use]
 mod macros;
 mod db;
+mod error;
 mod index;
 mod object_store;
 mod request;
@@ -8,9 +9,11 @@ mod transaction;
 mod utils;
 
 pub use crate::db::*;
+pub use crate::error::*;
 pub use crate::index::*;
 pub use crate::object_store::*;
 pub use crate::transaction::*;
+
 use std::fmt;
 use std::sync::Arc;
 use std::{
@@ -18,29 +21,23 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+use wasm_bindgen::{closure::Closure, JsCast};
 
 #[inline]
 fn factory() -> web_sys::IdbFactory {
     web_sys::window().unwrap().indexed_db().unwrap().unwrap()
 }
 
-//const MAX_SAFE_INTEGER: u64 = 9007199254740991; // 2 ^ 53
-
 /// Open a database.
-///
-/// # Panics
-///
-/// This function will panic if the new version is 0.
 pub async fn open(
     name: &str,
     version: u32,
     on_upgrade_needed: impl Fn(u32, IdbDatabaseDuringUpgrade) + 'static,
-) -> Result<IdbDatabase, JsValue> {
+) -> Result<IdbDatabase> {
     if version == 0 {
-        panic!("indexeddb version must be >= 1");
+        return Err(Error::IdbVersion);
     }
-    let mut request = IdbOpenDbRequest::open(name, version)?;
+    let mut request = IdbOpenDbRequest::open(name, version).map_err(|_| Error::IdbOpen)?;
     let request_copy = request.inner.clone();
     let onupgradeneeded = move |event: web_sys::IdbVersionChangeEvent| {
         let old_version = cast_version(event.old_version());
@@ -62,9 +59,7 @@ pub async fn open(
     request.await
 }
 
-/// Wraps the open db request. Private - the user interacts with the request using the function
-/// passed to the `open` method.
-
+/// Wraps the open db request.
 struct IdbOpenDbRequest {
     // We need to move a ref for this into the upgradeneeded closure.
     inner: Arc<web_sys::IdbOpenDbRequest>,
@@ -74,9 +69,11 @@ struct IdbOpenDbRequest {
 }
 
 impl IdbOpenDbRequest {
-    fn open(name: &str, version: u32) -> Result<IdbOpenDbRequest, JsValue> {
+    fn open(name: &str, version: u32) -> Result<IdbOpenDbRequest> {
         // Can error because of origin rules.
-        let inner = factory().open_with_f64(name, version as f64)?;
+        let inner = factory()
+            .open_with_f64(name, version as f64)
+            .map_err(|_| Error::IdbOpen)?;
         Ok(IdbOpenDbRequest {
             inner: Arc::new(inner),
             onsuccess: None,
@@ -93,7 +90,7 @@ impl fmt::Debug for IdbOpenDbRequest {
 }
 
 impl Future for IdbOpenDbRequest {
-    type Output = Result<IdbDatabase, JsValue>;
+    type Output = Result<IdbDatabase>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         use web_sys::IdbRequestReadyState as ReadyState;

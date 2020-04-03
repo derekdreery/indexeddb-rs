@@ -1,6 +1,6 @@
 use crate::object_store::ObjectStore;
 use std::marker::PhantomData;
-use wasm_bindgen::{prelude::*, JsCast};
+use wasm_bindgen::prelude::*;
 use web_sys::{DomException, IdbTransactionMode};
 
 #[derive(Debug)]
@@ -81,7 +81,7 @@ impl From<IdbTransactionMode> for TransactionMode {
             IdbTransactionMode::Readonly => TransactionMode::ReadOnly,
             IdbTransactionMode::Readwrite => TransactionMode::ReadWrite,
             IdbTransactionMode::Versionchange => TransactionMode::VersionChange,
-            __Nonexhaustive => panic!("Unexpected IdbTransactionMode"),
+            __nonexhaustive => panic!("Unexpected IdbTransactionMode"),
         }
     }
 }
